@@ -48,3 +48,38 @@ No hay prórroga: suban avances parciales con commits pequeños durante la prueb
 | [`test-manager-library-3145555-page`](https://github.com/code-sena/test-manager-library-3145555-page) | Sitio público estático de presentación |
 | [`test-manager-library-3145555-infra`](https://github.com/code-sena/test-manager-library-3145555-infra) | Contenedores, red, volúmenes y motor de base de datos vacío |
 | [`test-manager-library-3145555-tool`](https://github.com/code-sena/test-manager-library-3145555-tool) | Utilidades: sembrador de datos de demostración |
+
+## Cómo se usa
+
+Requisitos: Node 20 o superior y la API levantada. El sembrador **solo usa la API**, nunca SQL (`data-model.md` §9). No tiene dependencias.
+
+```bash
+export API_URL=http://localhost:8080/api/v1
+export ADMIN_USERNAME=admin
+export ADMIN_PASSWORD=<la clave del admin>
+```
+
+| Fase | Qué crea |
+|---|---|
+| `catalog` | 40 libros (8 por categoría) y 13 socios: 10 normales y 3 para los préstamos vencidos |
+| `overdue` | 3 préstamos que quedan vencidos |
+| `loans` | 12 préstamos normales (4 con una línea devuelta). Con los 3 vencidos suman 15 |
+| `check` | Imprime lo que informa la API: libros, socios, préstamos, líneas vencidas y filas del reporte |
+
+Un préstamo vencido necesita 14 días de antigüedad y la API fija la fecha del préstamo, así que la fase `overdue` se corre con la API iniciada con el reloj desplazado (DT-21). Solo se permite fuera de producción:
+
+```bash
+# 1. API con el reloj 20 días atrás (en el repo infra)
+APP_ENV=local CLOCK_OFFSET_DAYS=-20 docker compose up -d api
+node src/seed.mjs --phase catalog
+node src/seed.mjs --phase overdue
+
+# 2. API con el reloj normal
+APP_ENV=local CLOCK_OFFSET_DAYS=0 docker compose up -d api
+node src/seed.mjs --phase loans
+node src/seed.mjs --phase check
+```
+
+Resultado esperado de `check`: 40 libros, 13 socios, 15 préstamos, 3 líneas vencidas y el reporte con filas. Cada fase se puede repetir: lo que ya existe se reutiliza.
+
+Pruebas del catálogo: `npm test`.
